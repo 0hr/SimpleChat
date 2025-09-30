@@ -19,7 +19,7 @@ A simple p2p chat application built with C++ and Qt that uses a ring network for
 
 ## How to Build and Run
 
-A helper script `build_run.sh` is provided to build and run the application.
+A helper script `build_run.sh` is provided to build and run 4 nodes.
 
 1.  **Make the script executable:**
     ```bash

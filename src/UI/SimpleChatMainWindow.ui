@@ -168,7 +168,7 @@
       </property>
       <widget class="QTextBrowser" name="chatView">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -258,7 +258,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <item>
          <widget class="QTextEdit" name="messageEdit">
           <property name="enabled">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
@@ -286,7 +286,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <item>
          <widget class="QPushButton" name="sendButton">
           <property name="enabled">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
@@ -324,7 +324,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
      <x>0</x>
      <y>0</y>
      <width>676</width>
-     <height>24</height>
+     <height>37</height>
     </rect>
    </property>
   </widget>

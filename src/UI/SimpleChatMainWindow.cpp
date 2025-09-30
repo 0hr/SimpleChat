@@ -10,7 +10,7 @@ SimpleChatMainWindow::SimpleChatMainWindow(Controllers::ChatController* controll
     connect(ui->sendButton, &QPushButton::clicked, this, &SimpleChatMainWindow::onSend);
     connect(ui->connectButton, &QPushButton::clicked, this, &SimpleChatMainWindow::onConnect);
     connect(ui->disconnectButton, &QPushButton::clicked, this, &SimpleChatMainWindow::onDisconnect);
-    this->focusInput();
+    focusInput();
     ui->destEdit->setVisible(true);
     ui->destComboBox->setVisible(false);
 }
@@ -18,13 +18,14 @@ SimpleChatMainWindow::SimpleChatMainWindow(Controllers::ChatController* controll
 void SimpleChatMainWindow::focusInput() {
     ui->chatView->setFocus();
     ui->chatView->setFocusPolicy(Qt::StrongFocus);
+    ui->messageEdit->setFocus();
 }
 
 void SimpleChatMainWindow::toogleInputs(bool state) {
     ui->chatView->setEnabled(state);
-    ui->destEdit->setEnabled(state);
-    ui->messageEdit->setEnabled(state);
-    ui->sendButton->setEnabled(state);
+    //ui->destEdit->setEnabled(state);
+    //ui->messageEdit->setEnabled(state);
+    //ui->sendButton->setEnabled(state);
     ui->connectButton->setEnabled(!state);
     ui->disconnectButton->setEnabled(state);
 
@@ -72,7 +73,7 @@ void SimpleChatMainWindow::onSend() {
     );
 
     ui->messageEdit->clear();
-    ui->destComboBox->clear();
+    // ui->destComboBox->setCurrentIndex(-1);
     focusInput();
 }
 
@@ -85,6 +86,7 @@ void SimpleChatMainWindow::transportConnect(const QString &id, const QHostAddres
     connect(transport, &Core::IChatTransport::errorOccurred, this, &SimpleChatMainWindow::onTransportError);
 
     transport->start(address, id, port, nextPort);
+    this->focusInput();
 }
 
 void SimpleChatMainWindow::onConnect() {
@@ -120,4 +122,5 @@ void SimpleChatMainWindow::connectToPeer(const QString &id, const quint16 port, 
     QStringList list = peers.split(",");
     ui->destComboBox->addItems(list);
     transportConnect(id, QHostAddress::LocalHost, port, nextPort);
+    focusInput();
 }
