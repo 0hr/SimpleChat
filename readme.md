@@ -70,3 +70,57 @@ To create a ring of 4 peers, you would run the following commands in separate te
 ./build/SimpleChat --id 3 --port 9003 --next 9004 --peers 1,2,4
 ./build/SimpleChat --id 4 --port 9004 --next 9001 --peers 1,2,3
 ```
+
+### Testing 
+
+#### Test 1
+A helper scripts `build_run_test1.sh` is provided to build and run 4 nodes.
+
+**Test Case:** Peer 2 sends "Hi 3 (single hop)" to Peer 3
+
+**Expect:** Message Shows on Peer 3 only. Path 2 to 3
+
+#### Test 2
+A helper scripts `build_run_test2.sh` is provided to build and run 4 nodes.
+
+**Test Case:** Peer 1 sends "Hi 3 (two hops)" to Peer 3
+
+**Expect:** Message Shows on Peer 3 only. Path 1 to 2 to 3
+
+#### Test 3
+A helper scripts `build_run_test3.sh` is provided to build and run 4 nodes.
+
+**Test Case:** Peer 3 sends "Hi 2 (travel to end, 1 to 2)" to Peer 2
+
+**Expect:** Message Shows on Peer 3 only. Path 3 to 4 to 1 to 2
+
+#### Test 4
+A helper scripts `build_run_test4.sh` is provided to build and run 4 nodes.
+
+**Test case:**  Peer 1 sends messages to Peer 3 quickly Message, Message, Message
+
+**Expect:** On Peer 3, messages appear Message, Message, Message in order from Peer 1.
+
+#### Test 5
+A helper scripts `build_run_test5.sh` is provided to build and run 4 nodes.
+
+**Test case:**  
+- Peer 1 sends messages to Peer 3 quickly Message FROM Peer 1, Message FROM Peer 1, Message FROM Peer 1
+- Peer 2 sends messages to Peer 3 quickly Message FROM Peer 2, Message FROM Peer 2, Message FROM Peer 2
+- Peer 4 sends messages to Peer 3 quickly Message FROM Peer 4, Message FROM Peer 4, Message FROM Peer 4
+
+**Expect:** 
+
+On Peer 3, messages appear in order
+
+- Message FROM Peer 1, Message FROM Peer 1, Message FROM Peer 1
+- Message FROM Peer 2, Message FROM Peer 2, Message FROM Peer 2
+- Message FROM Peer 4, Message FROM Peer 4, Message FROM Peer 4
+
+
+#### Test 6
+A helper scripts `build_run_test6.sh` is provided to build and run 4 nodes.
+
+**Test case:**  Peer 1 sends messages to Peer 4 quickly Message \n test (line wrap)
+
+**Expect:** On Peer 4, messages appear Message \n test (line wrap) 

@@ -24,6 +24,8 @@ public:
 
     void connectToPeer(const QString &id, quint16 port, quint16 nextPort, const QString &peers);
 
+    void sendTestMessage(const QString &testPeer, const QString &testMessage, quint16 testCount);
+
 public slots:
     void appendLine(const QString &line);
 

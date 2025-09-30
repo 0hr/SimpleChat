@@ -4,7 +4,9 @@
 #include "ui_SimpleChatMainWindow.h"
 #include "../Core/RingTcpTransport.h"
 
-SimpleChatMainWindow::SimpleChatMainWindow(Controllers::ChatController* controller, QWidget *parent) : QMainWindow(parent), ui(new Ui::SimpleChatMainWindow), controller(controller) {
+SimpleChatMainWindow::SimpleChatMainWindow(Controllers::ChatController *controller,
+                                           QWidget *parent) : QMainWindow(parent), ui(new Ui::SimpleChatMainWindow),
+                                                              controller(controller) {
     ui->setupUi(this);
 
     connect(ui->sendButton, &QPushButton::clicked, this, &SimpleChatMainWindow::onSend);
@@ -43,12 +45,14 @@ void SimpleChatMainWindow::disableChatInputs() {
     toogleInputs(false);
 }
 
-void SimpleChatMainWindow::appendLine(const QString& line) {
+void SimpleChatMainWindow::appendLine(const QString &line) {
     ui->chatView->append(line.toHtmlEscaped());
 }
 
-void SimpleChatMainWindow::appendLineWithTitle(const QString& title, const QString& line) {
-    ui->chatView->append(QString("<div><b style=\"color:red\">%1</b> <span style=\"white-space: pre-wrap;\">%2</span></div>").arg(title).arg(line.toHtmlEscaped()));
+void SimpleChatMainWindow::appendLineWithTitle(const QString &title, const QString &line) {
+    ui->chatView->append(
+        QString("<div><b style=\"color:red\">%1</b> <span style=\"white-space: pre-wrap;\">%2</span></div>").arg(title).
+        arg(line.toHtmlEscaped()));
 }
 
 void SimpleChatMainWindow::onSend() {
@@ -63,7 +67,7 @@ void SimpleChatMainWindow::onSend() {
         QMessageBox::critical(nullptr, "Error", "You have to write message!");
         return;
     }
-    
+
     QMetaObject::invokeMethod(
         controller,
         "sendChat",
@@ -77,9 +81,11 @@ void SimpleChatMainWindow::onSend() {
     focusInput();
 }
 
-void SimpleChatMainWindow::transportConnect(const QString &id, const QHostAddress &address, const quint16 port, const quint16 nextPort) {
+void SimpleChatMainWindow::transportConnect(const QString &id, const QHostAddress &address, const quint16 port,
+                                            const quint16 nextPort) {
     this->controller->setId(id);
-    this->window()->setWindowTitle( "SimpleChat : Id:" + id + ", port: " + QString::number(port) + ", next port: "+ QString::number(nextPort));
+    this->window()->setWindowTitle(
+        "SimpleChat : Id:" + id + ", port: " + QString::number(port) + ", next port: " + QString::number(nextPort));
 
     auto transport = this->controller->getTransport();
     connect(transport, &Core::IChatTransport::connected, this, &SimpleChatMainWindow::enableChatInputs);
@@ -105,7 +111,7 @@ void SimpleChatMainWindow::onDisconnect() {
     this->disableChatInputs();
 }
 
-void SimpleChatMainWindow::onTransportError(const QString& error) {
+void SimpleChatMainWindow::onTransportError(const QString &error) {
     qDebug() << ("Error: " + error);
 }
 
@@ -113,7 +119,8 @@ SimpleChatMainWindow::~SimpleChatMainWindow() {
     delete ui;
 }
 
-void SimpleChatMainWindow::connectToPeer(const QString &id, const quint16 port, const quint16 nextPort, const QString &peers) {
+void SimpleChatMainWindow::connectToPeer(const QString &id, const quint16 port, const quint16 nextPort,
+                                         const QString &peers) {
     ui->idEdit->setText(id);
     ui->portSpin->setValue(port);
     ui->nextPortSpin->setValue(nextPort);
@@ -123,4 +130,17 @@ void SimpleChatMainWindow::connectToPeer(const QString &id, const quint16 port, 
     ui->destComboBox->addItems(list);
     transportConnect(id, QHostAddress::LocalHost, port, nextPort);
     focusInput();
+}
+
+void SimpleChatMainWindow::sendTestMessage(const QString &testPeer, const QString &testMessage, const quint16 testCount) {
+    for (quint16 i = 0; i < testCount; i++) {
+        QMetaObject::invokeMethod(
+            controller,
+            "sendChat",
+            Qt::QueuedConnection,
+            Q_ARG(QString, testPeer),
+            Q_ARG(QString, testMessage)
+
+        );
+    }
 }
