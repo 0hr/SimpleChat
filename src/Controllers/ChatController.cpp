@@ -1,15 +1,20 @@
 #include "ChatController.h"
 
+#include <QHostAddress>
+#include <QHostInfo>
+
 namespace Controllers {
+
     ChatController::ChatController(Core::IChatTransport* transport, QObject *parent)
         : QObject(parent), transport(transport) {
         connect(transport, &Core::IChatTransport::messageReceived, this, &ChatController::onMessage);
         connect(transport, &Core::IChatTransport::connected, this, &ChatController::onTransportConnected);
         connect(transport, &Core::IChatTransport::errorOccurred, this, &ChatController::onTransportError);
+        connect(transport, &Core::IChatTransport::peersChanged, this, &ChatController::onPeersChanged);
     }
 
     void ChatController::onTransportConnected() {
-        emit logLine(QStringLiteral("Connected to right neighbor."));
+        emit logLine(QStringLiteral("UDP transport ready."));
     }
 
     void ChatController::onTransportError(const QString &err) {
@@ -33,6 +38,7 @@ namespace Controllers {
         m["Origin"] = myId;
         m["Destination"] = destination;
         m["Seq"] = nextSeq;
+        m["Type"] = QStringLiteral("Chat");
 
         // emit logLine(QString("Me (%1) → %2 [#%3]: %4").arg(myId, destination, QString::number(nextSeq), text));
         emit logLineWithTitle(QString("Me (%1) → %2 [#%3]: ").arg(myId, destination, QString::number(nextSeq)), text);
@@ -50,7 +56,7 @@ namespace Controllers {
         if (seen.contains(k)) return;
         seen.insert(k);
 
-        if (dest == myId) {
+        if (dest == myId || dest == QStringLiteral("-1")) {
             deliverOrBuffer(msg);
         }
     }
@@ -72,5 +78,38 @@ namespace Controllers {
             // emit logLine(QString("From %1 [#%2]: %3").arg(origin).arg(expect).arg(text));
             emit logLineWithTitle(QString("From %1 [#%2]: ").arg(origin).arg(expect), text);
         }
+    }
+
+    void ChatController::requestPeer(const QString &host, quint16 port) {
+        if (!transport) return;
+        if (port == 0) {
+            emit logLine(QStringLiteral("Cannot add peer on port 0."));
+            return;
+        }
+
+        QHostAddress address;
+        if (address.setAddress(host)) {
+            transport->addPeer(address, port);
+            emit logLine(QStringLiteral("Attempting to reach peer %1:%2").arg(address.toString(), QString::number(port)));
+            return;
+        }
+
+        QHostInfo::lookupHost(host, this, [this, port, host](const QHostInfo& info) {
+            if (info.error() != QHostInfo::NoError) {
+                emit logLine(QStringLiteral("DNS lookup failed for %1: %2").arg(host, info.errorString()));
+                return;
+            }
+            if (info.addresses().isEmpty()) {
+                emit logLine(QStringLiteral("No addresses resolved for %1").arg(host));
+                return;
+            }
+            const QHostAddress resolved = info.addresses().first();
+            transport->addPeer(resolved, port);
+            emit logLine(QStringLiteral("Attempting to reach peer %1:%2").arg(resolved.toString(), QString::number(port)));
+        });
+    }
+
+    void ChatController::onPeersChanged(const QStringList &peerIds) {
+        emit peersUpdated(peerIds);
     }
 } // Controllers

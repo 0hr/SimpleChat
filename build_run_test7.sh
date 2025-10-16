@@ -6,7 +6,6 @@ root="$(cd "$current_dir/" && pwd)"
 build="$root/build"
 bin="$build/SimpleChat"
 
-
 if [[ ! -x "$bin" ]]; then
 echo "Building project..."
 mkdir -p "$build"
@@ -30,10 +29,11 @@ cleanup() {
 
 trap cleanup INT TERM EXIT
 
-"$bin" --id 1 --port 9001 --peers 127.0.0.1:9002,127.0.0.1:9003,127.0.0.1:9004 & pids+=($!)
-"$bin" --id 2 --port 9002 --peers 127.0.0.1:9001,127.0.0.1:9003,127.0.0.1:9004 & pids+=($!)
-"$bin" --id 3 --port 9003 --peers 127.0.0.1:9001,127.0.0.1:9002,127.0.0.1:9004 & pids+=($!)
-"$bin" --id 4 --port 9004 --peers 127.0.0.1:9001,127.0.0.1:9002,127.0.0.1:9003 & pids+=($!)
+"$bin" --id 1 --port 9101 & pids+=($!)
+"$bin" --id 2 --port 9102 --peers 127.0.0.1:9101 & pids+=($!)
+sleep 3
+"$bin" --id 3 --port 9103 & pids+=($!)
+"$bin" --id 4 --port 9104 --peers 127.0.0.1:9103 & pids+=($!)
 
-echo "Launched 4 SimpleChat instances (PIDs: ${pids[*]}). Press Ctrl+C to exit."
+echo "Launched 4 SimpleChat instances for autodiscovery (PIDs: ${pids[*]})."
 wait || true

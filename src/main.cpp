@@ -1,5 +1,7 @@
 #include "QApplication"
-#include "Core/RingTcpTransport.h"
+#include <QTimer>
+
+#include "Core/UdpPeerTransport.h"
 #include "UI/SimpleChatMainWindow.h"
 
 int main(int argc, char** argv) {
@@ -10,7 +12,6 @@ int main(int argc, char** argv) {
     QString testMessage;
     QString testPeer;
     quint16 port = 0;
-    quint16 nextPort = 0;
     quint16 testWaitTime = 0;
     quint16 testCount = 0;
 
@@ -19,14 +20,13 @@ int main(int argc, char** argv) {
         if (args[i] == "--id") { id = args[i+1]; }
         if (args[i] == "--peers") { peers = args[i+1]; }
         if (args[i] == "--port") { port = args[i+1].toUShort(); }
-        if (args[i] == "--next") { nextPort = args[i+1].toUShort(); }
         if (args[i] == "--test_message") { testMessage = args[i+1]; }
         if (args[i] == "--test_peer") { testPeer = args[i+1]; }
         if (args[i] == "--test_wait_time") { testWaitTime = args[i+1].toUShort(); }
         if (args[i] == "--test_count") { testCount = args[i+1].toUShort(); }
     }
 
-    auto* transport = new Core::RingTcpTransport();
+    auto* transport = new Core::UdpPeerTransport();
 
     auto* controller = new Controllers::ChatController(transport);
 
@@ -37,9 +37,9 @@ int main(int argc, char** argv) {
 
     simpleChatWindow.show();
 
-    qDebug() << "id:" + id << ", port: "<< port << ", next port: "<< nextPort;
-    if (!id.isNull() && port > 0 && nextPort > 0) {
-        simpleChatWindow.connectToPeer(id, port, nextPort, peers);
+    qDebug() << "id:" + id << ", port: "<< port;
+    if (!id.isNull() && port > 0) {
+        simpleChatWindow.connectToPeer(id, port, peers);
     }
 
     qDebug() << "test_message:" + testMessage << ", test_peer: "<< testPeer << ", test_wait_time: "<< testWaitTime << ", test_count: "<< testCount;

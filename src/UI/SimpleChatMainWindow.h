@@ -22,7 +22,7 @@ public:
 
     ~SimpleChatMainWindow() override;
 
-    void connectToPeer(const QString &id, quint16 port, quint16 nextPort, const QString &peers);
+    void connectToPeer(const QString &id, quint16 port, const QString &peers);
 
     void sendTestMessage(const QString &testPeer, const QString &testMessage, quint16 testCount);
 
@@ -34,13 +34,17 @@ public slots:
 private slots:
     void onSend();
 
-    void transportConnect(const QString &id, const QHostAddress &address, quint16 port, quint16 nextPort);
+    void transportConnect(const QString &id, const QHostAddress &address, quint16 port, const QString &peers);
 
     void onConnect();
 
     void onDisconnect();
 
     void onTransportError(const QString &error);
+
+    void onAddPeer();
+
+    void onPeersUpdated(const QStringList &peerIds);
 
 private:
     Ui::SimpleChatMainWindow *ui;
@@ -55,6 +59,8 @@ private:
     void enableChatInputs();
 
     void disableChatInputs();
+
+    QList<Core::IChatTransport::Peer> parsePeers(const QString &peersText) const;
 };
 
 

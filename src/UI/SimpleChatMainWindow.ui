@@ -106,19 +106,19 @@
         </widget>
        </item>
        <item>
-        <widget class="QLabel" name="nextPortLabel">
+        <widget class="QLabel" name="initialPeersLabel">
          <property name="text">
-          <string>Next Port:</string>
+          <string>Initial Peers:</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QSpinBox" name="nextPortSpin">
-         <property name="maximum">
-          <number>65535</number>
+        <widget class="QLineEdit" name="peersEdit">
+         <property name="placeholderText">
+          <string>127.0.0.1:9002,127.0.0.1:9003</string>
          </property>
-         <property name="value">
-          <number>9002</number>
+         <property name="clearButtonEnabled">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -154,6 +154,81 @@
           <string>Disconnect</string>
          </property>
         </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="peerAddWidget" native="true">
+      <layout class="QHBoxLayout" name="peerAddLayout">
+       <property name="spacing">
+        <number>6</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="addPeerLabel">
+         <property name="text">
+          <string>Add Peer:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLineEdit" name="peerHostEdit">
+         <property name="placeholderText">
+          <string>host or IP</string>
+         </property>
+         <property name="clearButtonEnabled">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="peerPortLabel">
+         <property name="text">
+          <string>Port:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QSpinBox" name="peerPortSpin">
+         <property name="maximum">
+          <number>65535</number>
+         </property>
+         <property name="value">
+          <number>9002</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="addPeerButton">
+         <property name="text">
+          <string>Add</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="addPeerStretch">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
        </item>
       </layout>
      </widget>
@@ -357,13 +432,15 @@ li.checked::marker { content: &quot;\2612&quot;; }
   </action>
  </widget>
  <tabstops>
-  <tabstop>hostEdit</tabstop>
-  <tabstop>idEdit</tabstop>
-  <tabstop>portSpin</tabstop>
-  <tabstop>nextPortSpin</tabstop>
-  <tabstop>messageEdit</tabstop>
-  <tabstop>sendButton</tabstop>
- </tabstops>
+ <tabstop>hostEdit</tabstop>
+ <tabstop>idEdit</tabstop>
+ <tabstop>portSpin</tabstop>
+ <tabstop>peersEdit</tabstop>
+ <tabstop>peerHostEdit</tabstop>
+ <tabstop>peerPortSpin</tabstop>
+ <tabstop>messageEdit</tabstop>
+ <tabstop>sendButton</tabstop>
+</tabstops>
  <resources/>
  <connections>
   <connection>

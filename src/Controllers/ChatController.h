@@ -13,15 +13,18 @@ namespace Controllers {
 
     public slots:
         void sendChat(const QString& destination, const QString& text);
+        void requestPeer(const QString& host, quint16 port);
 
     private slots:
         void onMessage(const QVariantMap& msg);
         void onTransportConnected();
         void onTransportError(const QString& err);
+        void onPeersChanged(const QStringList& peerIds);
 
     signals:
         void logLine(const QString& line);
         void logLineWithTitle(const QString& title, const QString& line);
+        void peersUpdated(const QStringList& peerIds);
 
     private:
         QString myId;

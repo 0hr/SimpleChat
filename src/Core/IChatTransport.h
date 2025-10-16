@@ -1,7 +1,7 @@
 #ifndef SIMPLECHAT_ICHATTRANSPORT_H
 #define SIMPLECHAT_ICHATTRANSPORT_H
 #include <QtCore>
-#include <QTcpSocket>
+#include <QtNetwork>
 
 namespace Core {
     class IChatTransport : public QObject {
@@ -9,13 +9,16 @@ namespace Core {
     public:
         using QObject::QObject;
         virtual ~IChatTransport() = default;
-        virtual void start(QHostAddress ipAddress, QString myId, quint16 myPort, quint16 nextPort) = 0;
+        using Peer = QPair<QHostAddress, quint16>;
+        virtual void start(const QHostAddress& bindAddress, const QString& myId, quint16 myPort, const QList<Peer>& initialPeers) = 0;
         virtual void stop() = 0;
         virtual void send(const QVariantMap& map) = 0;
-        signals:
-            void connected();
+        virtual void addPeer(const QHostAddress& address, quint16 port) = 0;
+    signals:
+        void connected();
         void errorOccurred(const QString& error);
         void messageReceived(const QVariantMap& msg);
+        void peersChanged(const QStringList& peerIds);
     };
 }
 #endif //SIMPLECHAT_ICHATTRANSPORT_H

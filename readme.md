@@ -1,45 +1,32 @@
 # SimpleChat
-### CS 550 Advanced OS - Programming Assignment - Part 1
+### CS 550 Advanced OS - Programming Assignment
 ### Harun Pekacar - A20607262
 
-A simple p2p chat application built with C++ and Qt that uses a ring network for communication.
+SimpleChat is a Qt 6 desktop client that demonstrates a UDP-based, peer-to-peer messaging with anti-entropy. Instances discover neighbours on localhost, exchange vector clocks, and deliver both direct and broadcast chat messages reliably.
 
 ## Features
 
-*   **P2P communication:** Chat with other users directly without a central server.
-*   **Ring network:** Each chat instance connects to the next one in a ring, and messages are forwarded until they reach their destination.
-*   **Simple UI:** A basic graphical user interface to send and receive messages.
-*   **Command-line arguments:** Configure the user ID, port, and the next peer's port and peer list via the command line.
+* **UDP peers:** Each node binds to a local port, discover nearby ports, and exchanges `Hello` messages to build a live peer list.
+* **Direct & broadcast messaging:** Messages contain `ChatText`, `Origin`, `Destination` (use `-1` for broadcast), and per-origin sequence numbers so peers can order delivery.
+* **Reliable delivery:** QUdpSocket transport adds acknowledgements, retry timers, and per peer tracking to resend messages that are not confirmed within ~1.5 seconds.
+* **Anti-entropy gossip:** Peers periodically publish vector clocks and push any missing messages.
 
 ## Prerequisites
 
-*   C++ compiler
-*   CMake
-*   Qt 6
+* C++20 compiler
+* CMake
+* Qt 6 (Widgets + Network modules)
 
-## How to Build and Run
+## Build & Run
 
-A helper script `build_run.sh` is provided to build and run 4 nodes.
+The helper script `build_run.sh` builds the project and launches four peers listening on ports 9001–9004:
 
-1.  **Make the script executable:**
-    ```bash
-    chmod +x build_run.sh
-    ```
+```bash
+chmod +x build_run.sh
+./build_run.sh
+```
 
-2.  **Run the script:**
-    ```bash
-    ./build_run.sh
-    ```
-
-This script will:
-1.  Create a `build` directory.
-2.  Run `cmake` to generate the build files.
-3.  Build the project.
-4.  Run 4 instances of the application, connected in a ring, with IDs 1, 2, 3, and 4, on ports 9001, 9002, 9003, and 9004.
-
-You can also build and run the application manually.
-
-### Building
+You can also build manually:
 
 ```bash
 mkdir build
@@ -48,79 +35,27 @@ cmake ..
 cmake --build .
 ```
 
-### Running
-
-To run an instance of the application, you need to specify the user ID, the port, and the port of the next peer in the ring and other peers.
+Launch a peer by providing an ID, a UDP port, and optional seed peers (`host:port` pairs):
 
 ```bash
-./build/SimpleChat --id <id> --port <port> --next <peer-port> --peers <comma-separated-list-of-other-peer-ids>
+./build/SimpleChat --id 1 --port 9001 --peers 127.0.0.1:9002,127.0.0.1:9003
 ```
 
-For example, to start a chat client with ID "1" on port 9001, which connects to a peer on port 9002, you would run:
+Within the UI:
 
-```bash
-./build/SimpleChat --id 1 --port 9001 --next 9002 --peers 2,3,4
-```
+1. Enter a unique ID, bind host (defaults to `127.0.0.1`), and local port.
+2. Supply initial peers (comma-separated `host:port`) or rely on local discovery.
+3. Click **Connect**. Use the **Add Peer** controls to attach to new hosts later.
+4. Set `To` to a peer ID for direct messages or `-1` to broadcast to the cluster.
 
-To create a ring of 4 peers, you would run the following commands in separate terminals:
+## Test Scripts
 
-```bash
-./build/SimpleChat --id 1 --port 9001 --next 9002 --peers 2,3,4
-./build/SimpleChat --id 2 --port 9002 --next 9003 --peers 1,3,4
-./build/SimpleChat --id 3 --port 9003 --next 9004 --peers 1,2,4
-./build/SimpleChat --id 4 --port 9004 --next 9001 --peers 1,2,3
-```
+Scripts `build_run_test1.sh` – `build_run_test6.sh` exercise the UDP mesh behaviours:
 
-### Testing 
-
-#### Test 1
-A helper scripts `build_run_test1.sh` is provided to build and run 4 nodes.
-
-**Test Case:** Peer 2 sends "Hi 3 (single hop)" to Peer 3
-
-**Expect:** Message Shows on Peer 3 only. Path 2 to 3
-
-#### Test 2
-A helper scripts `build_run_test2.sh` is provided to build and run 4 nodes.
-
-**Test Case:** Peer 1 sends "Hi 3 (two hops)" to Peer 3
-
-**Expect:** Message Shows on Peer 3 only. Path 1 to 2 to 3
-
-#### Test 3
-A helper scripts `build_run_test3.sh` is provided to build and run 4 nodes.
-
-**Test Case:** Peer 3 sends "Hi 2 (travel to end, 1 to 2)" to Peer 2
-
-**Expect:** Message Shows on Peer 3 only. Path 3 to 4 to 1 to 2
-
-#### Test 4
-A helper scripts `build_run_test4.sh` is provided to build and run 4 nodes.
-
-**Test case:**  Peer 1 sends messages to Peer 3 quickly Message, Message, Message
-
-**Expect:** On Peer 3, messages appear Message, Message, Message in order from Peer 1.
-
-#### Test 5
-A helper scripts `build_run_test5.sh` is provided to build and run 4 nodes.
-
-**Test case:**  
-- Peer 1 sends messages to Peer 3 quickly Message FROM Peer 1, Message FROM Peer 1, Message FROM Peer 1
-- Peer 2 sends messages to Peer 3 quickly Message FROM Peer 2, Message FROM Peer 2, Message FROM Peer 2
-- Peer 4 sends messages to Peer 3 quickly Message FROM Peer 4, Message FROM Peer 4, Message FROM Peer 4
-
-**Expect:** 
-
-On Peer 3, messages appear in order
-
-- Message FROM Peer 1, Message FROM Peer 1, Message FROM Peer 1
-- Message FROM Peer 2, Message FROM Peer 2, Message FROM Peer 2
-- Message FROM Peer 4, Message FROM Peer 4, Message FROM Peer 4
-
-
-#### Test 6
-A helper scripts `build_run_test6.sh` is provided to build and run 4 nodes.
-
-**Test case:**  Peer 1 sends messages to Peer 4 quickly Message \n test (line wrap)
-
-**Expect:** On Peer 4, messages appear Message \n test (line wrap) 
+- `test1`: peer 2 sends a single direct message to peer 3.
+- `test2`: peer 1 broadcasts to all peers (`-1` destination).
+- `test3`: peer 1 broadcasts while peer 3 is offline; peer 3 and peer 4 joins later and receives the messages via anti-entropy.
+- `test4`: peer 1 pushes a quick messages of ordered messages to peer 2.
+- `test5`: peers 1/2/4 send message to peer 3.
+- `test6`: peer 1 broadcasts a multi-line payload to confirm framing.
+- `test7`: auto discovery, peers find each other locally.

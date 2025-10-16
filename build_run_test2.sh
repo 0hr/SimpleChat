@@ -30,10 +30,10 @@ cleanup() {
 
 trap cleanup INT TERM EXIT
 
-"$bin" --id 1 --port 9001 --next 9002 --peers 2,3,4 --test_wait_time 1500 --test_message "Hi (two hops)" --test_peer 3 --test_count 1 & pids+=($!)
-"$bin" --id 2 --port 9002 --next 9003 --peers 1,3,4 & pids+=($!)
-"$bin" --id 3 --port 9003 --next 9004 --peers 1,2,4 & pids+=($!)
-"$bin" --id 4 --port 9004 --next 9001 --peers 1,2,3 & pids+=($!)
+"$bin" --id 1 --port 9001 --peers 127.0.0.1:9002,127.0.0.1:9003,127.0.0.1:9004 --test_wait_time 1500 --test_message "Broadcast hi" --test_peer -1 --test_count 1 & pids+=($!)
+"$bin" --id 2 --port 9002 --peers 127.0.0.1:9001,127.0.0.1:9003,127.0.0.1:9004 & pids+=($!)
+"$bin" --id 3 --port 9003 --peers 127.0.0.1:9001,127.0.0.1:9002,127.0.0.1:9004 & pids+=($!)
+"$bin" --id 4 --port 9004 --peers 127.0.0.1:9001,127.0.0.1:9002,127.0.0.1:9003 & pids+=($!)
 
-echo "Launched 4 SimpleChat instances (PIDs: ${pids[*]}). Press Ctrl+C to exit."
+echo "Launched 4 SimpleChat instances (PIDs: ${pids[*]}). Expect all peers to receive the broadcast from peer 1. Press Ctrl+C to exit."
 wait || true
