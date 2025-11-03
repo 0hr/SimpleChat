@@ -18,14 +18,28 @@ namespace Core {
         void stop() override;
         void send(const QVariantMap& map) override;
         void addPeer(const QHostAddress& address, quint16 port) override;
+        void setNoForwardMode(bool enabled) { noForwardMode = enabled; }
 
     private slots:
         void onReadyRead();
         void onResendTimeout();
         void onAntiEntropyTimeout();
         void processDiscoveryQueue();
+        void onRouteRumorTimeout();
 
     private:
+        struct RouteEntry {
+            QString destinationId;
+            QString nextHopId;
+            QHostAddress nextHopAddress;
+            quint16 nextHopPort = 0;
+            qulonglong seqNo = 0;
+            bool isDirect = false;
+            QHostAddress advertisedAddress;
+            quint16 advertisedPort = 0;
+            qint64 lastUpdatedMs = 0;
+        };
+
         struct PeerState {
             QString id;
             QHostAddress address;
@@ -62,6 +76,13 @@ namespace Core {
         QTimer resendTimer;
         QTimer antiEntropyTimer;
         QTimer discoveryTimer;
+        QTimer routeRumorTimer;
+
+        // DSDV routing
+        QHash<QString, RouteEntry> routes;
+        QHash<QString, qulonglong> routeSeqByOrigin;
+        qulonglong myRouteSeqNo = 0;
+        bool noForwardMode = false;
 
         static QString endpointKey(const QHostAddress& address, quint16 port);
         static QString messageKey(const QString& origin, qulonglong seq);
@@ -75,17 +96,26 @@ namespace Core {
         void handleDatagram(const QVariantMap& payload, const QHostAddress& senderAddress, quint16 senderPort);
         void handleHello(const QVariantMap& payload, const QHostAddress& senderAddress, quint16 senderPort, bool isReply);
         void handleChat(const QVariantMap& payload, const QString& senderId);
-        void handleAck(const QVariantMap& payload, const QString& senderId);
+        void handleAck(const QVariantMap& payload, const QString& senderId, const QHostAddress& senderAddress, quint16 senderPort);
         void handleSummary(const QVariantMap& payload, const QString& senderId);
         void sendAck(const QString& senderId, const QString& origin, qulonglong seq);
+        void handleRumor(const QVariantMap& payload, const QString& senderId, const QHostAddress& senderAddress, quint16 senderPort);
+        void sendRouteRumor(bool initialFanout = false);
+        void forwardRumorRandomNeighbor(const QString& excludePeerId, QVariantMap payload);
+        QString chooseRandomNeighbor(const QString& excludePeerId = QString()) const;
 
         void sendSummary(const QString& peerId, bool isReply);
         void forwardBroadcast(const QString& excludePeerId, const QVariantMap& message);
         void sendChatToPeer(const QString& peerId, const QVariantMap& message);
+        void forwardDirect(const QString& excludePeerId, QVariantMap message);
 
         void storeMessage(const QVariantMap& message);
         QVariantMap vectorClockPayload() const;
         QStringList peerIdList() const;
+        QStringList knownDestinationsList() const;
+        void updateRoutesDirectory();
+        static bool isBetterRoute(const RouteEntry& oldRoute, const RouteEntry& newRoute);
+        QList<QVariantMap> knownRoutesDetailedList() const;
         void updatePeerDirectory();
         void writeDatagram(const QVariantMap& payload, const QHostAddress& address, quint16 port);
         bool decodeDatagram(const QByteArray& data, QVariantMap& out) const;

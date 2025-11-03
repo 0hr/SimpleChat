@@ -23,6 +23,7 @@ public:
     ~SimpleChatMainWindow() override;
 
     void connectToPeer(const QString &id, quint16 port, const QString &peers);
+    void connectToPeer(const QString &id, quint16 port, const QString &peers, const QHostAddress& bindAddress);
 
     void sendTestMessage(const QString &testPeer, const QString &testMessage, quint16 testCount);
 
@@ -30,6 +31,10 @@ public slots:
     void appendLine(const QString &line);
 
     void appendLineWithTitle(const QString &title, const QString &line);
+
+    void openPrivateMessageDialog();
+
+    void onRoutesDetailedUpdated(const QList<QVariantMap>& routes);
 
 private slots:
     void onSend();

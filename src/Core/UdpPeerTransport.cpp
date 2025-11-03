@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QVariantList>
+#include <QRandomGenerator>
 
 
 namespace Core {
@@ -12,6 +13,7 @@ namespace Core {
     constexpr int kDiscoveryMultiplier = 5;
     constexpr int kDiscoveryTimes = 10;
     constexpr int kDiscoveryIntervalMs = 200;
+    constexpr int kRouteRumorIntervalMs = 6000;
 
     Core::IChatTransport::Peer parsePeerString(const QString& entry) {
         const QStringList idSplit = entry.split('@');
@@ -44,6 +46,10 @@ namespace Core {
         discoveryTimer.setInterval(kDiscoveryIntervalMs);
         discoveryTimer.setSingleShot(false);
         connect(&discoveryTimer, &QTimer::timeout, this, &UdpPeerTransport::processDiscoveryQueue);
+
+        routeRumorTimer.setInterval(kRouteRumorIntervalMs);
+        routeRumorTimer.setSingleShot(false);
+        connect(&routeRumorTimer, &QTimer::timeout, this, &UdpPeerTransport::onRouteRumorTimeout);
     }
 
     void UdpPeerTransport::start(const QHostAddress& address, const QString& id, quint16 port, const QList<Peer>& initialPeers) {
@@ -100,11 +106,18 @@ namespace Core {
         queuedEndpoints.clear();
         discoveryTimer.stop();
 
+        routes.clear();
+        routeSeqByOrigin.clear();
+        myRouteSeqNo = 0;
+
         resendTimer.start();
         antiEntropyTimer.start();
+        routeRumorTimer.start();
 
         emit connected();
         emit peersChanged(QStringList());
+        emit routesChanged(QStringList());
+        emit routesDetailedChanged(QList<QVariantMap>());
 
         for (const Peer& peer : initialPeers) {
             if (peer.second == 0 || peer.first.isNull()) continue;
@@ -113,6 +126,9 @@ namespace Core {
         if (initialPeers.isEmpty()) {
             discoverLocalPeers();
         }
+
+        // Send an initial route rumor..
+        QTimer::singleShot(500, this, [this]() { sendRouteRumor(true); });
     }
 
     void UdpPeerTransport::stop() {
@@ -126,6 +142,7 @@ namespace Core {
         resendTimer.stop();
         antiEntropyTimer.stop();
         discoveryTimer.stop();
+        routeRumorTimer.stop();
 
         pendingAcks.clear();
         peersById.clear();
@@ -141,6 +158,8 @@ namespace Core {
         bindAddress = QHostAddress();
 
         emit peersChanged(QStringList());
+        emit routesChanged(QStringList());
+        emit routesDetailedChanged(QList<QVariantMap>());
     }
 
     void UdpPeerTransport::send(const QVariantMap& map) {
@@ -153,8 +172,15 @@ namespace Core {
             message.insert(QStringLiteral("Origin"), myId);
         }
         const QString origin = message.value(QStringLiteral("Origin")).toString();
-        const QString destination = message.value(QStringLiteral("Destination")).toString();
+        QString destination = message.value(QStringLiteral("Destination")).toString();
+        if (destination.isEmpty()) {
+            destination = message.value(QStringLiteral("Dest")).toString();
+            if (!destination.isEmpty()) message.insert(QStringLiteral("Destination"), destination);
+        }
         const qulonglong seq = message.value(QStringLiteral("Seq")).toULongLong();
+        if (!message.contains(QStringLiteral("HopLimit"))) {
+            message.insert(QStringLiteral("HopLimit"), 10u);
+        }
 
         if (origin != myId) {
             message.insert(QStringLiteral("Origin"), myId);
@@ -176,11 +202,16 @@ namespace Core {
                 sendChatToPeer(it.key(), message);
             }
         } else {
+            QString nextHopId = destination;
             if (!peersById.contains(destination)) {
-                emit errorOccurred(QStringLiteral("No peer with id '%1' known.").arg(destination));
-                return;
+                if (routes.contains(destination)) {
+                    nextHopId = routes.value(destination).nextHopId;
+                } else {
+                    emit errorOccurred(QStringLiteral("No route to '%1'.").arg(destination));
+                    return;
+                }
             }
-            sendChatToPeer(destination, message);
+            sendChatToPeer(nextHopId, message);
         }
     }
 
@@ -200,7 +231,7 @@ namespace Core {
     void UdpPeerTransport::discoverLocalPeers() {
         if (!running) return;
         if (myPort == 0) return;
-        // grows the search radius step by step, close one find faster.
+
         for (int step = 0; step < kDiscoveryTimes; ++step) {
             constexpr int curr = kDiscoveryRadius * kDiscoveryTimes * kDiscoveryMultiplier;
             int prev = 0;
@@ -322,12 +353,20 @@ namespace Core {
             senderId = payload.value(QStringLiteral("Origin")).toString();
         }
 
+        const quint16 claimedPort = payload.value(QStringLiteral("Port")).toUInt();
+        const quint16 peerPort = claimedPort != 0 ? claimedPort : senderPort;
+
+        if ((senderId.isEmpty() || !peersById.contains(senderId))) {
+            const QString endKey = endpointKey(senderAddress, peerPort);
+            const QString mappedId = endpointToId.value(endKey);
+            if (!mappedId.isEmpty()) {
+                senderId = mappedId;
+            }
+        }
+
         if (senderId == myId) {
             return;
         }
-
-        const quint16 claimedPort = payload.value(QStringLiteral("Port")).toUInt();
-        const quint16 peerPort = claimedPort != 0 ? claimedPort : senderPort;
 
         const QVariantMap vectorVariant = payload.value(QStringLiteral("Vector")).toMap();
         QHash<QString, qulonglong> remoteVector;
@@ -348,11 +387,15 @@ namespace Core {
             return;
         }
         if (type == QStringLiteral("Ack")) {
-            handleAck(payload, senderId);
+            handleAck(payload, senderId, senderAddress, peerPort);
             return;
         }
         if (type == QStringLiteral("Summary")) {
             handleSummary(payload, senderId);
+            return;
+        }
+        if (type == QStringLiteral("Rumor") || type == QStringLiteral("RouteRumor")) {
+            handleRumor(payload, senderId, senderAddress, senderPort);
             return;
         }
         if (type == QStringLiteral("Chat")) {
@@ -402,18 +445,26 @@ namespace Core {
 
         messageReceivers[key].insert(senderId);
 
-        const QString destination = payload.value(QStringLiteral("Destination")).toString();
+        QString destination = payload.value(QStringLiteral("Destination")).toString();
+        if (destination.isEmpty()) destination = payload.value(QStringLiteral("Dest")).toString();
         if (isNew && (destination == myId || destination == QStringLiteral("-1"))) {
             emit messageReceived(payload);
         }
 
         if (isNew && destination == QStringLiteral("-1")) {
             forwardBroadcast(senderId, payload);
+            return;
+        }
+
+        // Forward messages according to DSDV routing
+        if (isNew && !destination.isEmpty() && destination != myId && destination != QStringLiteral("-1")) {
+            forwardDirect(senderId, payload);
         }
     }
 
     void UdpPeerTransport::forwardBroadcast(const QString& excludePeerId, const QVariantMap& message) {
         if (!running) return;
+        if (noForwardMode) return;
         const QString origin = message.value(QStringLiteral("Origin")).toString();
         const qulonglong seq = message.value(QStringLiteral("Seq")).toULongLong();
         const QString key = messageKey(origin, seq);
@@ -425,14 +476,48 @@ namespace Core {
         }
     }
 
-    void UdpPeerTransport::handleAck(const QVariantMap& payload, const QString& senderId) {
+    void UdpPeerTransport::forwardDirect(const QString& excludePeerId, QVariantMap message) {
+        if (!running) return;
+        if (noForwardMode) return;
+        const QString dest = message.value(QStringLiteral("Destination")).toString();
+        if (dest.isEmpty() || dest == myId) return;
+
+        quint32 hopLimit = message.value(QStringLiteral("HopLimit")).toUInt();
+        if (hopLimit == 0) return;
+        message.insert(QStringLiteral("HopLimit"), hopLimit - 1);
+
+        QString nextHopId;
+        if (peersById.contains(dest)) {
+            nextHopId = dest; // direct neighbor
+        } else if (routes.contains(dest)) {
+            nextHopId = routes.value(dest).nextHopId;
+        }
+        if (nextHopId.isEmpty() || nextHopId == excludePeerId) return;
+
+        sendChatToPeer(nextHopId, message);
+    }
+
+    void UdpPeerTransport::handleAck(const QVariantMap& payload, const QString& senderId, const QHostAddress& senderAddress, quint16 senderPort) {
         if (!running) return;
         const QString ackOrigin = payload.value(QStringLiteral("AckOrigin")).toString();
         const qulonglong seq = payload.value(QStringLiteral("Seq")).toULongLong();
         if (ackOrigin.isEmpty() || seq == 0) return;
 
-        const QString key = pendingKey(senderId, ackOrigin, seq);
+        QString key = pendingKey(senderId, ackOrigin, seq);
         auto it = pendingAcks.find(key);
+        if (it == pendingAcks.end()) {
+            const QString endKey = endpointKey(senderAddress, senderPort);
+            const QString mappedId = endpointToId.value(endKey);
+            if (!mappedId.isEmpty() && mappedId != senderId) {
+                key = pendingKey(mappedId, ackOrigin, seq);
+                it = pendingAcks.find(key);
+            }
+        }
+        if (it == pendingAcks.end()) {
+            for (auto scan = pendingAcks.begin(); scan != pendingAcks.end(); ++scan) {
+                if (scan->origin == ackOrigin && scan->seq == seq) { it = scan; key = scan.key(); break; }
+            }
+        }
         if (it == pendingAcks.end()) {
             return;
         }
@@ -479,6 +564,130 @@ namespace Core {
         if (!isReply) {
             sendSummary(senderId, true);
         }
+    }
+
+    void UdpPeerTransport::onRouteRumorTimeout() {
+        if (!running) return;
+        sendRouteRumor(false);
+    }
+
+    void UdpPeerTransport::sendRouteRumor(bool initialFanout) {
+        if (!running) return;
+
+        myRouteSeqNo += 1;
+
+        QVariantMap rumor;
+        rumor.insert(QStringLiteral("Type"), QStringLiteral("Rumor"));
+        rumor.insert(QStringLiteral("Origin"), myId);
+        rumor.insert(QStringLiteral("Sender"), myId);
+        rumor.insert(QStringLiteral("SeqNo"), QVariant::fromValue(myRouteSeqNo));
+        rumor.insert(QStringLiteral("Port"), myPort);
+        rumor.insert(QStringLiteral("HopLimit"), 10u);
+
+        if (initialFanout) {
+            for (auto it = peersById.constBegin(); it != peersById.constEnd(); ++it) {
+
+        QHostAddress last = bindAddress;
+        if (last.isNull() || last == QHostAddress::Any || last == QHostAddress::AnyIPv6) last = QHostAddress::LocalHost;
+        rumor.insert(QStringLiteral("LastIP"), last.toString());
+        rumor.insert(QStringLiteral("LastPort"), QVariant::fromValue(myPort));
+        writeDatagram(rumor, it->address, it->port);
+            }
+        } else {
+            const QString neighbor = chooseRandomNeighbor();
+            if (!neighbor.isEmpty()) {
+                const PeerState& st = peersById.value(neighbor);
+                QHostAddress last2 = bindAddress;
+                if (last2.isNull() || last2 == QHostAddress::Any || last2 == QHostAddress::AnyIPv6) last2 = QHostAddress::LocalHost;
+                rumor.insert(QStringLiteral("LastIP"), last2.toString());
+                rumor.insert(QStringLiteral("LastPort"), QVariant::fromValue(myPort));
+                writeDatagram(rumor, st.address, st.port);
+            }
+        }
+    }
+
+    void UdpPeerTransport::forwardRumorRandomNeighbor(const QString& excludePeerId, QVariantMap payload) {
+        if (!running) return;
+        quint32 hop = payload.value(QStringLiteral("HopLimit")).toUInt();
+        if (hop == 0) return;
+        payload.insert(QStringLiteral("HopLimit"), hop - 1);
+        payload.insert(QStringLiteral("Sender"), myId);
+
+        const QString neighbor = chooseRandomNeighbor(excludePeerId);
+        if (neighbor.isEmpty()) return;
+        const PeerState& st = peersById.value(neighbor);
+        writeDatagram(payload, st.address, st.port);
+    }
+
+    QString UdpPeerTransport::chooseRandomNeighbor(const QString& excludePeerId) const {
+        if (peersById.isEmpty()) return QString();
+        QStringList ids;
+        ids.reserve(peersById.size());
+        for (auto it = peersById.constBegin(); it != peersById.constEnd(); ++it) {
+            if (!excludePeerId.isEmpty() && it.key() == excludePeerId) continue;
+            if (it.key() == myId) continue;
+            ids.append(it.key());
+        }
+        if (ids.isEmpty()) return QString();
+        const int idx = QRandomGenerator::global()->bounded(ids.size());
+        return ids.at(idx);
+    }
+
+    void UdpPeerTransport::handleRumor(const QVariantMap& payload, const QString& senderId, const QHostAddress& senderAddress, quint16 senderPort) {
+        if (!running) return;
+        const QString origin = payload.value(QStringLiteral("Origin")).toString();
+        const qulonglong seqNo = payload.value(QStringLiteral("SeqNo")).toULongLong();
+        if (origin.isEmpty() || seqNo == 0) return;
+
+
+        QVariantMap forwarded = payload;
+        forwarded.insert(QStringLiteral("LastIP"), senderAddress.toString());
+        forwarded.insert(QStringLiteral("LastPort"), QVariant::fromValue(senderPort));
+
+        bool shouldUpdate = false;
+        const qulonglong known = routeSeqByOrigin.value(origin, 0ULL);
+        if (seqNo > known) {
+            shouldUpdate = true;
+        }
+
+
+
+
+        RouteEntry candidate;
+        candidate.destinationId = origin;
+        candidate.nextHopId = senderId;
+        candidate.nextHopAddress = senderAddress;
+        candidate.nextHopPort = senderPort;
+        candidate.seqNo = seqNo;
+        candidate.isDirect = (senderId == origin);
+        candidate.lastUpdatedMs = currentMs();
+        const QHostAddress advAddr(payload.value(QStringLiteral("LastIP")).toString());
+        const quint16 advPort = payload.value(QStringLiteral("LastPort")).toUInt();
+        if (!advAddr.isNull() && advPort != 0) {
+            candidate.advertisedAddress = advAddr;
+            candidate.advertisedPort = advPort;
+        }
+
+        auto itOld = routes.find(origin);
+        if (itOld == routes.end()) {
+            if (shouldUpdate) {
+                routes.insert(origin, candidate);
+                routeSeqByOrigin.insert(origin, seqNo);
+                updateRoutesDirectory();
+            }
+        } else {
+            if (shouldUpdate || isBetterRoute(itOld.value(), candidate)) {
+                itOld.value() = candidate;
+                routeSeqByOrigin.insert(origin, qMax(seqNo, known));
+                updateRoutesDirectory();
+            }
+        }
+
+        if (!candidate.advertisedAddress.isNull() && candidate.advertisedPort != 0) {
+            addPeer(candidate.advertisedAddress, candidate.advertisedPort);
+        }
+
+        forwardRumorRandomNeighbor(senderId, forwarded);
     }
 
     void UdpPeerTransport::onResendTimeout() {
@@ -556,6 +765,8 @@ namespace Core {
 
     void UdpPeerTransport::sendChatToPeer(const QString& peerId, const QVariantMap& message) {
         if (!running) return;
+
+        if (noForwardMode && message.value(QStringLiteral("Origin")).toString() != myId) return;
         auto it = peersById.find(peerId);
         if (it == peersById.end()) return;
 
@@ -630,8 +841,53 @@ namespace Core {
         return ids;
     }
 
+    QStringList UdpPeerTransport::knownDestinationsList() const {
+        QSet<QString> out;
+        for (auto it = peersById.constBegin(); it != peersById.constEnd(); ++it) {
+            out.insert(it.key());
+        }
+        for (auto it = routes.constBegin(); it != routes.constEnd(); ++it) {
+            out.insert(it.key());
+        }
+        out.remove(myId);
+        QStringList list = out.values();
+        list.sort();
+        return list;
+    }
+
     void UdpPeerTransport::updatePeerDirectory() {
         emit peersChanged(peerIdList());
+    }
+
+    void UdpPeerTransport::updateRoutesDirectory() {
+        emit routesChanged(knownDestinationsList());
+        emit routesDetailedChanged(knownRoutesDetailedList());
+    }
+
+    bool UdpPeerTransport::isBetterRoute(const RouteEntry& oldRoute, const RouteEntry& newRoute) {
+        if (newRoute.seqNo > oldRoute.seqNo) return true;
+        if (newRoute.seqNo < oldRoute.seqNo) return false;
+
+        if (newRoute.isDirect && !oldRoute.isDirect) return true;
+        return false;
+    }
+
+    QList<QVariantMap> UdpPeerTransport::knownRoutesDetailedList() const {
+        QList<QVariantMap> list;
+        list.reserve(routes.size());
+        for (auto it = routes.constBegin(); it != routes.constEnd(); ++it) {
+            const RouteEntry &r = it.value();
+            QVariantMap m;
+            m.insert(QStringLiteral("Dest"), r.destinationId);
+            m.insert(QStringLiteral("NextHop"), r.nextHopId);
+            m.insert(QStringLiteral("SeqNo"), QVariant::fromValue(r.seqNo));
+            m.insert(QStringLiteral("Direct"), r.isDirect);
+            m.insert(QStringLiteral("LastIP"), r.advertisedAddress.toString());
+            m.insert(QStringLiteral("LastPort"), QVariant::fromValue(r.advertisedPort));
+            m.insert(QStringLiteral("LastUpdatedMs"), QVariant::fromValue(r.lastUpdatedMs));
+            list.append(m);
+        }
+        return list;
     }
 
     void UdpPeerTransport::addOrUpdatePeer(const QString& peerId, const QHostAddress& address, quint16 port, const QHash<QString, qulonglong>& remoteVector) {
@@ -652,6 +908,7 @@ namespace Core {
 
         if (!isKnown) {
             updatePeerDirectory();
+            QTimer::singleShot(0, this, [this]() { sendRouteRumor(true); });
         }
 
         const QString key = endpointKey(address, port);

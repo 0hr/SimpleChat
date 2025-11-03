@@ -11,6 +11,8 @@ namespace Controllers {
         connect(transport, &Core::IChatTransport::connected, this, &ChatController::onTransportConnected);
         connect(transport, &Core::IChatTransport::errorOccurred, this, &ChatController::onTransportError);
         connect(transport, &Core::IChatTransport::peersChanged, this, &ChatController::onPeersChanged);
+        connect(transport, &Core::IChatTransport::routesChanged, this, &ChatController::onRoutesChanged);
+        connect(transport, &Core::IChatTransport::routesDetailedChanged, this, &ChatController::onRoutesDetailedChanged);
     }
 
     void ChatController::onTransportConnected() {
@@ -110,6 +112,25 @@ namespace Controllers {
     }
 
     void ChatController::onPeersChanged(const QStringList &peerIds) {
-        emit peersUpdated(peerIds);
+        latestPeers = peerIds;
+        emitMergedDestinations();
+    }
+
+    void ChatController::onRoutesChanged(const QStringList &destinationIds) {
+        latestDestinations = destinationIds;
+        emitMergedDestinations();
+    }
+
+    void ChatController::emitMergedDestinations() {
+        QSet<QString> merged;
+        for (const auto &p : latestPeers) merged.insert(p);
+        for (const auto &d : latestDestinations) merged.insert(d);
+        QStringList out = merged.values();
+        out.sort();
+        emit peersUpdated(out);
+    }
+
+    void ChatController::onRoutesDetailedChanged(const QList<QVariantMap> &routes) {
+        emit routesDetailedUpdated(routes);
     }
 } // Controllers

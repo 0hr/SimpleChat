@@ -20,11 +20,14 @@ namespace Controllers {
         void onTransportConnected();
         void onTransportError(const QString& err);
         void onPeersChanged(const QStringList& peerIds);
+        void onRoutesDetailedChanged(const QList<QVariantMap>& routes);
+        void onRoutesChanged(const QStringList& destinationIds);
 
     signals:
         void logLine(const QString& line);
         void logLineWithTitle(const QString& title, const QString& line);
         void peersUpdated(const QStringList& peerIds);
+        void routesDetailedUpdated(const QList<QVariantMap>& routes);
 
     private:
         QString myId;
@@ -33,6 +36,9 @@ namespace Controllers {
         QHash<QString, qulonglong> expectedSeq;
         QHash<QString, QMap<qulonglong, QVariantMap>> inboxBuffer;
         qulonglong nextSeq = 0;
+        QStringList latestPeers;
+        QStringList latestDestinations;
+        void emitMergedDestinations();
 
         static QString key(const QString& origin, qulonglong seq) { return origin + "#" + QString::number(seq); }
         void deliverOrBuffer(const QVariantMap& msg);

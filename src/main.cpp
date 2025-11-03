@@ -12,8 +12,10 @@ int main(int argc, char** argv) {
     QString testMessage;
     QString testPeer;
     quint16 port = 0;
+    QString bindAddrStr;
     quint16 testWaitTime = 0;
     quint16 testCount = 0;
+    bool noForwardMode = false;
 
     const QStringList args = QCoreApplication::arguments();
     for (int i = 1; i + 1 < args.size(); ++i) {
@@ -24,9 +26,12 @@ int main(int argc, char** argv) {
         if (args[i] == "--test_peer") { testPeer = args[i+1]; }
         if (args[i] == "--test_wait_time") { testWaitTime = args[i+1].toUShort(); }
         if (args[i] == "--test_count") { testCount = args[i+1].toUShort(); }
+        if (args[i] == "--noforward") { noForwardMode = true; }
+        if (args[i] == "--bind") { bindAddrStr = args[i+1]; }
     }
 
     auto* transport = new Core::UdpPeerTransport();
+    transport->setNoForwardMode(noForwardMode);
 
     auto* controller = new Controllers::ChatController(transport);
 
@@ -39,7 +44,14 @@ int main(int argc, char** argv) {
 
     qDebug() << "id:" + id << ", port: "<< port;
     if (!id.isNull() && port > 0) {
-        simpleChatWindow.connectToPeer(id, port, peers);
+        QHostAddress bind = QHostAddress::LocalHost;
+        if (!bindAddrStr.isEmpty()) {
+            QHostAddress tmp;
+            if (tmp.setAddress(bindAddrStr)) {
+                bind = tmp;
+            }
+        }
+        simpleChatWindow.connectToPeer(id, port, peers, bind);
     }
 
     qDebug() << "test_message:" + testMessage << ", test_peer: "<< testPeer << ", test_wait_time: "<< testWaitTime << ", test_count: "<< testCount;

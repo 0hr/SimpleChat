@@ -5,10 +5,18 @@
 
 #include <QHostAddress>
 #include <QSignalBlocker>
+#include <QInputDialog>
+#include <QShortcut>
+#include <QListWidget>
+#include <QTableWidget>
+#include <QTableWidgetItem>
+#include <QHeaderView>
+#include <QDateTime>
 
-SimpleChatMainWindow::SimpleChatMainWindow(Controllers::ChatController *controller,
-                                           QWidget *parent) : QMainWindow(parent), ui(new Ui::SimpleChatMainWindow),
-                                                              controller(controller) {
+SimpleChatMainWindow::SimpleChatMainWindow(
+    Controllers::ChatController *controller,
+    QWidget *parent
+) : QMainWindow(parent), ui(new Ui::SimpleChatMainWindow), controller(controller) {
     ui->setupUi(this);
 
     connect(ui->sendButton, &QPushButton::clicked, this, &SimpleChatMainWindow::onSend);
@@ -16,10 +24,29 @@ SimpleChatMainWindow::SimpleChatMainWindow(Controllers::ChatController *controll
     connect(ui->disconnectButton, &QPushButton::clicked, this, &SimpleChatMainWindow::onDisconnect);
     connect(ui->addPeerButton, &QPushButton::clicked, this, &SimpleChatMainWindow::onAddPeer);
     connect(controller, &Controllers::ChatController::peersUpdated, this, &SimpleChatMainWindow::onPeersUpdated);
+    connect(controller, &Controllers::ChatController::routesDetailedUpdated, this, &SimpleChatMainWindow::onRoutesDetailedUpdated);
 
-    ui->destComboBox->setVisible(true);
-    ui->destEdit->setVisible(true);
     ui->peerHostEdit->setText(QStringLiteral("127.0.0.1"));
+
+    connect(ui->nodesListWidget, &QListWidget::itemActivated, this, [this](QListWidgetItem* item){
+        if (!item) return;
+        openPrivateMessageDialog();
+    });
+
+    connect(ui->nodesListWidget, &QListWidget::itemClicked, this, [this](QListWidgetItem* item){
+        if (!item) return;
+        openPrivateMessageDialog();
+    });
+
+    if (auto table = this->findChild<QTableWidget*>("routesTable")) {
+        table->setColumnCount(6);
+        QStringList headers;
+        headers << tr("Dest") << tr("Next Hop") << tr("SeqNo") << tr("Direct") << tr("Endpoint") << tr("Updated");
+        table->setHorizontalHeaderLabels(headers);
+        table->horizontalHeader()->setStretchLastSection(true);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        table->setSelectionMode(QAbstractItemView::NoSelection);
+    }
 
     focusInput();
     disableChatInputs();
@@ -33,9 +60,7 @@ void SimpleChatMainWindow::focusInput() {
 
 void SimpleChatMainWindow::toogleInputs(bool state) {
     ui->chatView->setEnabled(state);
-    //ui->destEdit->setEnabled(state);
-    //ui->messageEdit->setEnabled(state);
-    //ui->sendButton->setEnabled(state);
+
     ui->connectButton->setEnabled(!state);
     ui->disconnectButton->setEnabled(state);
 
@@ -69,7 +94,6 @@ void SimpleChatMainWindow::appendLineWithTitle(const QString &title, const QStri
 
 void SimpleChatMainWindow::onSend() {
     const QString text = ui->messageEdit->toPlainText().trimmed();
-    const QString dest = ui->destEdit->text().trimmed();
     if (text.isEmpty()) {
         QMessageBox::critical(nullptr, "Error", "You have to write message!");
         return;
@@ -79,7 +103,7 @@ void SimpleChatMainWindow::onSend() {
         controller,
         "sendChat",
         Qt::QueuedConnection,
-        Q_ARG(QString, dest),
+        Q_ARG(QString, QStringLiteral("-1")),
         Q_ARG(QString, text)
     );
 
@@ -121,7 +145,6 @@ void SimpleChatMainWindow::transportConnect(const QString &id, const QHostAddres
     }
 
     this->focusInput();
-    ui->destEdit->setText(QStringLiteral("-1"));
 }
 
 void SimpleChatMainWindow::onConnect() {
@@ -156,8 +179,6 @@ void SimpleChatMainWindow::onDisconnect() {
     }
     this->disableChatInputs();
     onPeersUpdated(QStringList());
-    ui->destEdit->clear();
-    ui->destComboBox->clear();
 }
 
 void SimpleChatMainWindow::onTransportError(const QString &error) {
@@ -169,11 +190,14 @@ SimpleChatMainWindow::~SimpleChatMainWindow() {
 }
 
 void SimpleChatMainWindow::connectToPeer(const QString &id, const quint16 port, const QString &peers) {
+    connectToPeer(id, port, peers, QHostAddress::LocalHost);
+}
+
+void SimpleChatMainWindow::connectToPeer(const QString &id, const quint16 port, const QString &peers, const QHostAddress& bindAddress) {
     ui->idEdit->setText(id);
     ui->portSpin->setValue(port);
     ui->peersEdit->setText(peers);
-    transportConnect(id, QHostAddress::LocalHost, port, peers);
-    ui->destEdit->setText(QStringLiteral("-1"));
+    transportConnect(id, bindAddress, port, peers);
     focusInput();
 }
 
@@ -212,18 +236,88 @@ void SimpleChatMainWindow::onPeersUpdated(const QStringList &peerIds) {
     }
     filtered.sort();
 
-    const QString previous = ui->destComboBox->currentText();
     {
-        QSignalBlocker blocker(ui->destComboBox);
-        ui->destComboBox->clear();
-        ui->destComboBox->addItem(QStringLiteral("-1"));
-        ui->destComboBox->addItems(filtered);
+        QSignalBlocker blocker(ui->nodesListWidget);
+        ui->nodesListWidget->clear();
+        ui->nodesListWidget->addItems(filtered);
     }
-    if (filtered.contains(previous) || previous == QStringLiteral("-1")) {
-        ui->destComboBox->setCurrentText(previous);
-    } else {
-        ui->destComboBox->setCurrentIndex(-1);
+}
+
+void SimpleChatMainWindow::openPrivateMessageDialog() {
+    QStringList options;
+    for (int i = 0; i < ui->nodesListWidget->count(); ++i) {
+        const auto *item = ui->nodesListWidget->item(i);
+        if (!item) continue;
+        const QString text = item->text().trimmed();
+        if (text.isEmpty()) continue;
+        options << text;
     }
+    options.removeAll(ui->idEdit->text().trimmed());
+    options.sort();
+    if (options.isEmpty()) {
+        QMessageBox::information(this, tr("Private Message"), tr("No destinations available."));
+        return;
+    }
+
+    bool ok = false;
+    QString currentTarget;
+    if (auto* selItem = ui->nodesListWidget->currentItem()) {
+        currentTarget = selItem->text();
+    }
+    int currentIndex = options.indexOf(currentTarget);
+    if (currentIndex < 0) currentIndex = 0;
+    const QString dest = QInputDialog::getItem(this, tr("Private Message"), tr("Destination:"), options, currentIndex, false, &ok);
+    if (!ok || dest.isEmpty()) return;
+
+    bool ok2 = false;
+    const QString text = QInputDialog::getMultiLineText(this, tr("Private Message"), tr("Message:"), QString(), &ok2);
+    if (!ok2 || text.trimmed().isEmpty()) return;
+
+    QMetaObject::invokeMethod(
+        controller,
+        "sendChat",
+        Qt::QueuedConnection,
+        Q_ARG(QString, dest),
+        Q_ARG(QString, text)
+    );
+}
+
+static QString sinceString(qint64 ms) {
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    qint64 delta = qMax<qint64>(0, now - ms);
+    if (delta < 2000) return QObject::tr("just now");
+    if (delta < 60000) return QObject::tr("%1s ago").arg(delta/1000);
+    if (delta < 3600000) return QObject::tr("%1m ago").arg(delta/60000);
+    return QObject::tr("%1h ago").arg(delta/3600000);
+}
+
+void SimpleChatMainWindow::onRoutesDetailedUpdated(const QList<QVariantMap> &routes) {
+    auto table = this->findChild<QTableWidget*>("routesTable");
+    if (!table) return;
+    table->setRowCount(routes.size());
+    int row = 0;
+    for (const QVariantMap &m : routes) {
+        const QString dest = m.value("Dest").toString();
+        const QString nextHop = m.value("NextHop").toString();
+        const qulonglong seqNo = m.value("SeqNo").toULongLong();
+        const bool direct = m.value("Direct").toBool();
+        const QString ip = m.value("LastIP").toString();
+        const quint16 port = static_cast<quint16>(m.value("LastPort").toUInt());
+        const qint64 updated = m.value("LastUpdatedMs").toLongLong();
+
+        auto setItem = [&](int col, const QString &text){
+            auto *it = new QTableWidgetItem(text);
+            table->setItem(row, col, it);
+        };
+        setItem(0, dest);
+        setItem(1, nextHop);
+        setItem(2, QString::number(seqNo));
+        setItem(3, direct ? tr("Yes") : tr("No"));
+        setItem(4, (ip.isEmpty() || port == 0) ? QString() : QStringLiteral("%1:%2").arg(ip, QString::number(port)));
+        setItem(5, updated > 0 ? sinceString(updated) : QString());
+        row++;
+    }
+    table->resizeColumnsToContents();
 }
 
 QList<Core::IChatTransport::Peer> SimpleChatMainWindow::parsePeers(const QString &peersText) const {

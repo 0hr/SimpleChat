@@ -233,6 +233,74 @@
       </layout>
      </widget>
     </item>
+    
+    <item>
+     <widget class="QGroupBox" name="routesGroup">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>1</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>200</height>
+       </size>
+      </property>
+      <property name="title">
+       <string>Routes</string>
+      </property>
+      <layout class="QVBoxLayout" name="routesLayout">
+       <property name="leftMargin">
+        <number>6</number>
+       </property>
+       <property name="topMargin">
+        <number>6</number>
+       </property>
+       <property name="rightMargin">
+        <number>6</number>
+       </property>
+       <property name="bottomMargin">
+        <number>6</number>
+       </property>
+       <item>
+        <widget class="QTableWidget" name="routesTable">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>1</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>160</height>
+          </size>
+         </property>
+         <property name="alternatingRowColors">
+          <bool>true</bool>
+         </property>
+         <property name="showGrid">
+          <bool>true</bool>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::NoSelection</enum>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="rowCount">
+          <number>0</number>
+         </property>
+         <property name="columnCount">
+          <number>0</number>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
     <item>
      <widget class="QSplitter" name="splitter">
       <property name="orientation">
@@ -295,95 +363,111 @@ li.checked::marker { content: &quot;\2612&quot;; }
          <number>0</number>
         </property>
         <item>
-         <widget class="QLabel" name="toLabel">
-          <property name="text">
-           <string>To:</string>
+         <widget class="QGroupBox" name="nodesGroup">
+          <property name="title">
+           <string>Destinations</string>
           </property>
+          <layout class="QVBoxLayout" name="nodesLayout">
+           <property name="leftMargin">
+            <number>4</number>
+           </property>
+           <property name="topMargin">
+            <number>4</number>
+           </property>
+           <property name="rightMargin">
+            <number>4</number>
+           </property>
+           <property name="bottomMargin">
+            <number>4</number>
+           </property>
+           <item>
+            <widget class="QListWidget" name="nodesListWidget">
+             <property name="selectionMode">
+              <enum>QAbstractItemView::SingleSelection</enum>
+             </property>
+             <property name="uniformItemSizes">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="destEdit">
-          <property name="placeholderText">
-           <string>Peer Id</string>
+         <widget class="QGroupBox" name="broadcastGroup">
+          <property name="title">
+           <string>Broadcast</string>
           </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QComboBox" name="destComboBox">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="editable">
-           <bool>false</bool>
-          </property>
-          <property name="currentText">
-           <string/>
-          </property>
-          <property name="placeholderText">
-           <string>Peer Id</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QTextEdit" name="messageEdit">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-            <horstretch>1</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>0</width>
-            <height>72</height>
-           </size>
-          </property>
-          <property name="lineWrapMode">
-           <enum>QTextEdit::LineWrapMode::WidgetWidth</enum>
-          </property>
-          <property name="acceptRichText">
-           <bool>false</bool>
-          </property>
-          <property name="placeholderText">
-           <string>Type a message… </string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="sendButton">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>96</width>
-            <height>36</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>&amp;Send</string>
-          </property>
-          <property name="autoDefault">
-           <bool>true</bool>
-          </property>
-          <property name="default">
-           <bool>true</bool>
-          </property>
+          <layout class="QVBoxLayout" name="broadcastLayout">
+           <property name="leftMargin">
+            <number>4</number>
+           </property>
+           <property name="topMargin">
+            <number>4</number>
+           </property>
+           <property name="rightMargin">
+            <number>4</number>
+           </property>
+           <property name="bottomMargin">
+            <number>4</number>
+           </property>
+           <item>
+            <widget class="QTextEdit" name="messageEdit">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+               <horstretch>1</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>72</height>
+              </size>
+             </property>
+             <property name="lineWrapMode">
+              <enum>QTextEdit::LineWrapMode::WidgetWidth</enum>
+             </property>
+             <property name="acceptRichText">
+              <bool>false</bool>
+             </property>
+             <property name="placeholderText">
+              <string>Type a broadcast message…</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="sendButton">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>96</width>
+               <height>36</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>&amp;Send Broadcast</string>
+             </property>
+             <property name="autoDefault">
+              <bool>true</bool>
+             </property>
+             <property name="default">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
        </layout>
@@ -442,24 +526,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
  <tabstop>sendButton</tabstop>
 </tabstops>
  <resources/>
- <connections>
-  <connection>
-   <sender>destComboBox</sender>
-   <signal>currentTextChanged(QString)</signal>
-   <receiver>destEdit</receiver>
-   <slot>setText(QString)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>210</x>
-     <y>362</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>95</x>
-     <y>361</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
  <slots>
   <slot>sendRequested()</slot>
   <slot>connectionToggled(bool)</slot>

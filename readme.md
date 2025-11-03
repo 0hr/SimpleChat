@@ -1,8 +1,10 @@
 # SimpleChat
-### CS 550 Advanced OS - Programming Assignment
+### CS 550 Advanced OS - Programming Assignment 3
 ### Harun Pekacar - A20607262
 
-SimpleChat is a Qt 6 desktop client that demonstrates a UDP-based, peer-to-peer messaging with anti-entropy. Instances discover neighbours on localhost, exchange vector clocks, and deliver both direct and broadcast chat messages reliably.
+SimpleChat is a Qt 6 desktop client that demonstrates a UDP-based, peer-to-peer messaging with anti-entropy. 
+Instances discover neighbours on localhost, exchange vector clocks, and deliver both direct and broadcast chat messages reliably.
+It also has Destination-Sequenced Distance-Vector (DSDV) routing and basic NAT via route rumors, and an --noforward rendezvous mode.
 
 ## Features
 
@@ -10,6 +12,10 @@ SimpleChat is a Qt 6 desktop client that demonstrates a UDP-based, peer-to-peer 
 * **Direct & broadcast messaging:** Messages contain `ChatText`, `Origin`, `Destination` (use `-1` for broadcast), and per-origin sequence numbers so peers can order delivery.
 * **Reliable delivery:** QUdpSocket transport adds acknowledgements, retry timers, and per peer tracking to resend messages that are not confirmed within ~1.5 seconds.
 * **Anti-entropy gossip:** Peers periodically publish vector clocks and push any missing messages.
+* **Forwarding:** Private messages include a HopLimit and are forwarded toward the next hop if not local.
+* **Routing (DSDV):** Each node keeps a next hop per destination with a sequence number; newer routes win, and direct routes win on ties. Each node sends small periodic reachability updates that spread and refresh routes.
+* **Rendezvous (no forward):** A node can run with `--noforward`. It helps discovery but does not relay chat.
+* **NAT:** Each rumor carries the last seen public IP and port so peers can attempt direct connections.
 
 ## Prerequisites
 
@@ -41,21 +47,40 @@ Launch a peer by providing an ID, a UDP port, and optional seed peers (`host:por
 ./build/SimpleChat --id 1 --port 9001 --peers 127.0.0.1:9002,127.0.0.1:9003
 ```
 
-Within the UI:
+UI:
 
 1. Enter a unique ID, bind host (defaults to `127.0.0.1`), and local port.
 2. Supply initial peers (comma-separated `host:port`) or rely on local discovery.
 3. Click **Connect**. Use the **Add Peer** controls to attach to new hosts later.
 4. Set `To` to a peer ID for direct messages or `-1` to broadcast to the cluster.
+5. The Routes table shows the current route per destination
+
+## Routes table
+
+* Dest: destination node id
+* Next Hop: next peer on the path
+* SeqNo: freshness for routing, higher is newer
+* Direct: Yes for neighbor, No for multi-hop
+* Endpoint: last seen IP and port
+* Updated: time since last update
+
+## NAT traversal (Linux)
+Set up namespaces and a bridge:
+
+```bash
+sudo bash netns_setup.sh
+```
+Clean up when done:
+
+```bash
+sudo bash netns_remove.sh
+```
 
 ## Test Scripts
 
-Scripts `build_run_test1.sh` – `build_run_test6.sh` exercise the UDP mesh behaviours:
-
-- `test1`: peer 2 sends a single direct message to peer 3.
-- `test2`: peer 1 broadcasts to all peers (`-1` destination).
-- `test3`: peer 1 broadcasts while peer 3 is offline; peer 3 and peer 4 joins later and receives the messages via anti-entropy.
-- `test4`: peer 1 pushes a quick messages of ordered messages to peer 2.
-- `test5`: peers 1/2/4 send message to peer 3.
-- `test6`: peer 1 broadcasts a multi-line payload to confirm framing.
-- `test7`: auto discovery, peers find each other locally.
+- `test1`: Peer 1 sends broadcast message to all peers.
+- `test2`: Route rumors appear in their routes table and Peer 1 sends message to Peer 3 via Peer 2
+- `test3`: Peer 2 sends private message to Peer 3
+- `test4`: Peer 4 sends private message to Peer 4 via DSDV multi hop
+- `test5`: N1 and N1 peers discover enpoints via route rumors and send message using S noforward (run netns_setup.sh before testing)
+- `test6`: Peer 1 and Peer 3 discover each other via route rumors and Message Peer 1 to Peer 3 may not deliver through 2.

@@ -19,6 +19,8 @@ namespace Core {
         void errorOccurred(const QString& error);
         void messageReceived(const QVariantMap& msg);
         void peersChanged(const QStringList& peerIds);
+        void routesChanged(const QStringList& destinationIds);
+        void routesDetailedChanged(const QList<QVariantMap>& routes);
     };
 }
 #endif //SIMPLECHAT_ICHATTRANSPORT_H
